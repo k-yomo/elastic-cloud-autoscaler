@@ -1,5 +1,9 @@
 .DEFAULT_GOAL := help
 
+.PHONY: setup
+setup: ## Setup tools
+	go install github.com/golang/mock/mockgen
+
 .PHONY: test
 test: ## Run tests
 	go install gotest.tools/gotestsum@latest
@@ -13,6 +17,10 @@ cover: test ## Run tests with showing coverage
 .PHONY: lint
 lint: ## Run golangci-lint
 	@golangci-lint run
+
+.PHONY: generate
+generate: ## Run go generate
+	go generate ./...
 
 .PHONY: fmt
 fmt: ## Format code

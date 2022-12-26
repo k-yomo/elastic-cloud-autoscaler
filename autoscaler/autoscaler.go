@@ -16,20 +16,20 @@ import (
 	"time"
 )
 
-type AutoScalar struct {
+type AutoScaler struct {
 	config *Config
 
 	ecClient elasticcloud.Client
 	esClient elasticsearch.Client
 }
 
-func New(config *Config) (*AutoScalar, error) {
+func New(config *Config) (*AutoScaler, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
 	ecClient := elasticcloud.NewClient(config.ElasticCloudClient, config.DeploymentID)
 	esClient := elasticsearch.NewClient(config.ElasticsearchClient)
-	return &AutoScalar{
+	return &AutoScaler{
 		config:   config,
 		ecClient: ecClient,
 		esClient: esClient,
@@ -38,7 +38,7 @@ func New(config *Config) (*AutoScalar, error) {
 
 // Run executes scale in/out if needed based on the configuration
 // This method will return non-nil ScalingOperation with error when error happens after scaling operation is decided
-func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
+func (a *AutoScaler) Run(ctx context.Context) (*ScalingOperation, error) {
 	scalingOperation, err := a.CalcScalingOperation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("calculate scaling operation: %w", err)
@@ -69,7 +69,7 @@ func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
 	return scalingOperation, nil
 }
 
-func (a *AutoScalar) CalcScalingOperation(ctx context.Context) (*ScalingOperation, error) {
+func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperation, error) {
 	esResource, nodeStats, indexSettings, err := a.getDataForDecidingScalingOperation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get required data for deciding scaling operation: %w", err)
@@ -223,7 +223,7 @@ func calcAvailableTopologySizes(
 	return availableTopologySizes, nil
 }
 
-func (a *AutoScalar) getDataForDecidingScalingOperation(ctx context.Context) (
+func (a *AutoScaler) getDataForDecidingScalingOperation(ctx context.Context) (
 	*models.ElasticsearchResourceInfo,
 	*elasticsearch.NodeStats,
 	*elasticsearch.IndexSettings,
@@ -266,7 +266,7 @@ func (a *AutoScalar) getDataForDecidingScalingOperation(ctx context.Context) (
 	return esResource, nodeStats, indexSettings, nil
 }
 
-func (a *AutoScalar) isWithinCoolDownPeriod(planInfo *models.ElasticsearchClusterPlansInfo) (bool, error) {
+func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchClusterPlansInfo) (bool, error) {
 	currentTopology := elasticcloud.FindHotContentTopology(planInfo.Current.Plan.ClusterTopology)
 
 	var scaledUp bool

@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func TestAutoScalar_CalcScalingOperation(t *testing.T) {
+func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 	now := time.Now()
 	resetNow := clock.MockTime(t, now)
 	defer resetNow()
@@ -217,7 +217,7 @@ func TestAutoScalar_CalcScalingOperation(t *testing.T) {
 				tt.config.Scaling.AutoScaling.MetricsProvider = mockMetricsProvider
 			}
 
-			a := &AutoScalar{
+			a := &AutoScaler{
 				config:   tt.config,
 				ecClient: mockECClient,
 				esClient: mockESClient,

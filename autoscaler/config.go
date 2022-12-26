@@ -23,11 +23,15 @@ type Config struct {
 
 type ScalingConfig struct {
 	// Default memory min size. It can be overwritten by ScheduledScalingConfig.MinSizeMemoryGB.
-	// Available number is only 1,2,4,8,16,34,64,...(64xN node)
-	DefaultMinSizeMemoryGB int `validate:"gt=0"`
+	// Available number is only 64,...(64xN node)
+	// If you have multiple zone, this memory is per zone.
+	// NOTE: Currently we only support 64GB node for simplicity
+	DefaultMinSizeMemoryGB int `validate:"gte=64"`
 	// Default memory max size. It can be overwritten by ScheduledScalingConfig.MaxSizeMemoryGB.
-	// Available number is only 1,2,4,8,16,34,64,...(64xN node)
-	DefaultMaxSizeMemoryGB int `validate:"gt=0,gtefield=DefaultMinSizeMemoryGB"`
+	// Available number is only 64,...(64xN node)
+	// If you have multiple zone, this memory is per zone.
+	// NOTE: Currently we only support 64GB node for simplicity
+	DefaultMaxSizeMemoryGB int `validate:"gte=64,gtefield=DefaultMinSizeMemoryGB"`
 
 	AutoScaling       *AutoScalingConfig
 	ScheduledScalings []*ScheduledScalingConfig
@@ -59,10 +63,12 @@ type AutoScalingConfig struct {
 type ScheduledScalingConfig struct {
 	// MinSizeMemoryGB is the minimum memory size during the specified period
 	// If 0, then `ScalingConfig.DefaultMinSizeMemoryGB` will be used
-	MinSizeMemoryGB int `validate:"gte=0"`
+	// NOTE: Currently we only support 64GB node for simplicity
+	MinSizeMemoryGB int `validate:"gte=64"`
 	// MaxSizeMemoryGB is the maximum memory size during the specified period
 	// If 0, then `ScalingConfig.DefaultMaxSizeMemoryGB` will be used
-	MaxSizeMemoryGB int `validate:"gte=0,gtefield=MinSizeMemoryGB"`
+	// NOTE: Currently we only support 64GB node for simplicity
+	MaxSizeMemoryGB int `validate:"gte=64,gtefield=MinSizeMemoryGB"`
 	// cron format schedule
 	// default timezone is machine local timezone,
 	// if you want to specify, set TZ= prefix (e.g. `TZ=UTC 0 0 0 0 0`)

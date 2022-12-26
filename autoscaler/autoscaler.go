@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/elastic/cloud-sdk-go/pkg/models"
-	"github.com/elastic/cloud-sdk-go/pkg/util/ec"
+	"github.com/k-yomo/elastic-cloud-autoscaler/metrics"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/clock"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticcloud"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticsearch"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/memory"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/timeutil"
+	"github.com/k0kubun/pp/v3"
 	"github.com/robfig/cron/v3"
 	"golang.org/x/sync/errgroup"
 	"math"
@@ -19,8 +20,9 @@ import (
 type AutoScalar struct {
 	config *Config
 
-	ecClient elasticcloud.Client
-	esClient elasticsearch.Client
+	ecClient        elasticcloud.Client
+	esClient        elasticsearch.Client
+	metricsProvider metrics.Provider
 }
 
 func New(config *Config) (*AutoScalar, error) {
@@ -76,11 +78,6 @@ func (a *AutoScalar) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 	}
 
 	currentTopology := elasticcloud.FindHotContentTopology(esResource.Info.PlanInfo.Current.Plan.ClusterTopology)
-	minTopologySize, maxTopologySize, err := calcMinMaxTopologySize(a.config.Scaling)
-	if err != nil {
-		return nil, fmt.Errorf("calculate min miax topology size: %w", err)
-	}
-
 	scalingOperation := &ScalingOperation{
 		FromTopologySize: currentTopology.Size,
 		ToTopologySize:   currentTopology.Size,
@@ -93,92 +90,139 @@ func (a *AutoScalar) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		return scalingOperation, nil
 	}
 
-	if isWithinCoolDownPeriod, err := a.isWithinCoolDownPeriod(esResource.Info.PlanInfo); isWithinCoolDownPeriod {
-		scalingOperation.Reason = "Within cool down period"
-		// TODO: we may need to check if replica update needed
+	minTopologySize, maxTopologySize, err := calcMinMaxTopologySize(a.config.Scaling)
+	if err != nil {
+		return nil, fmt.Errorf("calculate min miax topology size: %w", err)
+	}
+	availableTopologySizes, err := calcAvailableTopologySizes(
+		minTopologySize,
+		maxTopologySize,
+		currentTopology.ZoneCount,
+		a.config.Scaling.ShardsPerNode,
+		indexSettings.ShardNum,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("caluclate available topology sizes: %w", err)
+	}
+
+	if len(availableTopologySizes) == 0 {
+		scalingOperation.Reason = "No possible topology size with the given configuration"
 		return scalingOperation, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("check if within cool down period: %w", err)
 	}
 
 	desiredTopologySize := currentTopology.Size
-	desiredReplicaNum := indexSettings.ReplicaNum
 	if autoScalingConfig := a.config.Scaling.AutoScaling; autoScalingConfig != nil {
-		now := clock.Now()
-		dataContentNodes := nodeStats.DataContentNodes()
-		currentCPUUtil := dataContentNodes.AvgCPUUtil()
-
-		fetchMetricsAfter := now.Add(-timeutil.MaxDuration(autoScalingConfig.ScaleOutThresholdDuration, autoScalingConfig.ScaleInThresholdDuration))
-		cpuUtils, err := autoScalingConfig.MetricsProvider.GetCPUUtilMetrics(ctx, dataContentNodes.IDs(), fetchMetricsAfter)
+		isWithinCoolDownPeriod, err := a.isWithinCoolDownPeriod(esResource.Info.PlanInfo)
 		if err != nil {
-			return nil, fmt.Errorf("get cpu util metrics: %w", err)
+			return nil, fmt.Errorf("check if within cool down period: %w", err)
 		}
 
-		if cpuUtils.After(now.Add(-autoScalingConfig.ScaleOutThresholdDuration)).AllGreaterThan(float64(autoScalingConfig.DesiredCPUUtilPercent)) {
-			// Consider scaling up
-			maxNodeNum := elasticcloud.CalcTopologyNodeNum(&models.ElasticsearchClusterTopologyElement{
-				Size:      maxTopologySize,
-				ZoneCount: currentTopology.ZoneCount,
-			})
-			maxReplicaNum := maxNodeNum*a.config.Scaling.ShardsPerNode/indexSettings.ShardNum - 1
+		if !isWithinCoolDownPeriod {
+			now := clock.Now()
+			dataContentNodes := nodeStats.DataContentNodes()
+			currentCPUUtil := dataContentNodes.AvgCPUUtil()
 
-			minDiffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - currentCPUUtil)
-			for replicaNum := indexSettings.ReplicaNum; replicaNum <= maxReplicaNum; replicaNum++ {
-				nodeNum := elasticsearch.CalcTotalShardNum(indexSettings.ShardNum, replicaNum) / a.config.Scaling.ShardsPerNode
-				estimatedCPUUtil := dataContentNodes.TotalCPUUtil() / float64(nodeNum)
-				diffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - estimatedCPUUtil)
+			fetchMetricsAfter := now.Add(-timeutil.MaxDuration(autoScalingConfig.ScaleOutThresholdDuration, autoScalingConfig.ScaleInThresholdDuration))
+			cpuUtils, err := autoScalingConfig.MetricsProvider.GetCPUUtilMetrics(ctx, dataContentNodes.IDs(), fetchMetricsAfter)
+			if err != nil {
+				return nil, fmt.Errorf("get cpu util metrics: %w", err)
+			}
 
-				if diffFromDesiredCPUUtil < minDiffFromDesiredCPUUtil {
-					desiredTopologySize = elasticcloud.NewTopologySize(int32(nodeNum * 64))
-					desiredReplicaNum = replicaNum
-					minDiffFromDesiredCPUUtil = diffFromDesiredCPUUtil
+			shouldScaleOut := cpuUtils.After(now.Add(-autoScalingConfig.ScaleOutThresholdDuration)).AllGreaterThan(float64(autoScalingConfig.DesiredCPUUtilPercent))
+			shouldScaleIn := cpuUtils.After(now.Add(-autoScalingConfig.ScaleInThresholdDuration)).AllLessThan(float64(autoScalingConfig.DesiredCPUUtilPercent))
+			if shouldScaleOut || shouldScaleIn {
+				minDiffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - currentCPUUtil)
+				pp.Println("currentDiffFromDesiredCPUUtil", minDiffFromDesiredCPUUtil)
+				for _, topologySize := range availableTopologySizes {
+					nodeNum := elasticcloud.CalcNodeNum(topologySize, currentTopology.ZoneCount)
+					estimatedCPUUtil := dataContentNodes.TotalCPUUtil() / float64(nodeNum)
+					diffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - estimatedCPUUtil)
+					pp.Println("nodeNum", nodeNum)
+					pp.Println("estimatedCPUUtil", estimatedCPUUtil)
+					pp.Println("diffFromDesiredCPUUtil", diffFromDesiredCPUUtil)
+					if diffFromDesiredCPUUtil < minDiffFromDesiredCPUUtil {
+						desiredTopologySize = topologySize
+						minDiffFromDesiredCPUUtil = diffFromDesiredCPUUtil
+					}
 				}
 			}
-		} else if cpuUtils.After(now.Add(-autoScalingConfig.ScaleInThresholdDuration)).AllLessThan(float64(autoScalingConfig.DesiredCPUUtilPercent)) {
-			// Consider scaling down
-			minNodeNum := elasticcloud.CalcTopologyNodeNum(&models.ElasticsearchClusterTopologyElement{
-				Size:      minTopologySize,
-				ZoneCount: currentTopology.ZoneCount,
-			})
-			minReplicaNum := minNodeNum*a.config.Scaling.ShardsPerNode/indexSettings.ShardNum - 1
-
-			minDiffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - currentCPUUtil)
-			for replicaNum := indexSettings.ReplicaNum; replicaNum >= minReplicaNum; replicaNum-- {
-				nodeNum := elasticsearch.CalcTotalShardNum(indexSettings.ShardNum, replicaNum) / a.config.Scaling.ShardsPerNode
-				estimatedCPUUtil := dataContentNodes.TotalCPUUtil() / float64(nodeNum)
-				diffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - estimatedCPUUtil)
-
-				if diffFromDesiredCPUUtil < minDiffFromDesiredCPUUtil {
-					desiredTopologySize = elasticcloud.NewTopologySize(int32(nodeNum * 64))
-					desiredReplicaNum = replicaNum
-					minDiffFromDesiredCPUUtil = diffFromDesiredCPUUtil
+			if *desiredTopologySize.Value != *currentTopology.Size.Value {
+				scalingOperation.ToTopologySize = desiredTopologySize
+				scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
+					elasticcloud.CalcNodeNum(desiredTopologySize, currentTopology.ZoneCount),
+					a.config.Scaling.ShardsPerNode,
+					indexSettings.ShardNum,
+				)
+				if shouldScaleOut {
+					scalingOperation.Reason = fmt.Sprintf("CPU utilization is greater than the desired CPU utilization '%d%%' for %.0f seconds", autoScalingConfig.DesiredCPUUtilPercent, autoScalingConfig.ScaleOutThresholdDuration.Seconds())
+				} else if shouldScaleIn {
+					scalingOperation.Reason = fmt.Sprintf("CPU utilization is less than the desired CPU utilization '%d%%' for %.0f seconds", autoScalingConfig.DesiredCPUUtilPercent, autoScalingConfig.ScaleInThresholdDuration.Seconds())
 				}
 			}
 		}
-		scalingOperation.ToTopologySize = desiredTopologySize
-		scalingOperation.ToReplicaNum = desiredReplicaNum
 	}
 
-	// TODO: Need to check replica count and min/max shard count
-	if *desiredTopologySize.Value > *maxTopologySize.Value {
-		scalingOperation.ToTopologySize = maxTopologySize
+	if *desiredTopologySize.Value < *minTopologySize.Value {
+		minAvailableTopologySize := availableTopologySizes[0]
+		scalingOperation.ToTopologySize = minAvailableTopologySize
+		scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
+			elasticcloud.CalcNodeNum(minAvailableTopologySize, currentTopology.ZoneCount),
+			a.config.Scaling.ShardsPerNode,
+			indexSettings.ShardNum,
+		)
 		scalingOperation.Reason = fmt.Sprintf(
-			"desired topology size '%d' is greater than max topology size '%d'",
-			*desiredTopologySize.Value,
-			*maxTopologySize.Value,
+			"current or desired topology size '%dg' is less than min topology size '%dg'",
+			memory.ConvertMibToGiB(*desiredTopologySize.Value),
+			memory.ConvertMibToGiB(*minTopologySize.Value),
 		)
 		return scalingOperation, nil
 	}
-	if *desiredTopologySize.Value < *minTopologySize.Value {
-		scalingOperation.ToTopologySize = minTopologySize
+	if *desiredTopologySize.Value > *maxTopologySize.Value {
+		maxAvailableTopologySize := availableTopologySizes[len(availableTopologySizes)-1]
+		scalingOperation.ToTopologySize = maxAvailableTopologySize
+		scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
+			elasticcloud.CalcNodeNum(maxAvailableTopologySize, currentTopology.ZoneCount),
+			a.config.Scaling.ShardsPerNode,
+			indexSettings.ShardNum,
+		)
 		scalingOperation.Reason = fmt.Sprintf(
-			"desired topology size '%d' is less than min topology size '%d'",
-			*desiredTopologySize.Value,
-			*minTopologySize.Value,
+			"current or desired topology size '%dg' is greater than max topology size '%dg'",
+			memory.ConvertMibToGiB(*desiredTopologySize.Value),
+			memory.ConvertMibToGiB(*maxTopologySize.Value),
 		)
 		return scalingOperation, nil
 	}
 	return scalingOperation, nil
+}
+
+// calcAvailableTopologySizes calculates available topology sizes within given min/max sizes
+// Only topology size that meets shardsPerZone will be returned
+func calcAvailableTopologySizes(
+	minTopologySize *models.TopologySize,
+	maxTopologySize *models.TopologySize,
+	zoneCount int32,
+	shardsPerNode int,
+	shardNum int,
+) ([]*models.TopologySize, error) {
+	var availableTopologySizes []*models.TopologySize
+
+	minNodeNum := elasticcloud.CalcNodeNum(minTopologySize, zoneCount)
+	maxNodeNum := elasticcloud.CalcNodeNum(maxTopologySize, zoneCount)
+	minReplicaNum := calcReplicaNumFromNodeNum(minNodeNum, shardsPerNode, shardNum)
+	maxReplicaNum := calcReplicaNumFromNodeNum(maxNodeNum, shardsPerNode, shardNum)
+	for replicaNum := minReplicaNum; replicaNum <= maxReplicaNum; replicaNum++ {
+		totalShardNum := elasticsearch.CalcTotalShardNum(shardNum, replicaNum)
+		if totalShardNum%shardsPerNode != 0 {
+			continue
+		}
+		nodeNum := totalShardNum / shardsPerNode
+		if nodeNum%int(zoneCount) != 0 {
+			continue
+		}
+		// TODO: Fix hardcoded 64 to support the other node sizes
+		availableTopologySizes = append(availableTopologySizes, elasticcloud.NewTopologySize(int32(nodeNum/int(zoneCount)*64)))
+	}
+	return availableTopologySizes, nil
 }
 
 func (a *AutoScalar) getDataForDecidingScalingOperation(ctx context.Context) (
@@ -277,13 +321,11 @@ func calcMinMaxTopologySize(config ScalingConfig) (min *models.TopologySize, max
 		}
 	}
 
-	minTopologySize := &models.TopologySize{
-		Resource: ec.String("memory"),
-		Value:    ec.Int32(memory.ConvertGiBToMiB(int32(minSizeMemoryGB))),
-	}
-	maxTopologySize := &models.TopologySize{
-		Resource: ec.String("memory"),
-		Value:    ec.Int32(memory.ConvertGiBToMiB(int32(maxSizeMemoryGB))),
-	}
-	return minTopologySize, maxTopologySize, nil
+	return elasticcloud.NewTopologySize(int32(minSizeMemoryGB)),
+		elasticcloud.NewTopologySize(int32(maxSizeMemoryGB)),
+		nil
+}
+
+func calcReplicaNumFromNodeNum(nodeNum int, shardsPerNode int, shardNum int) int {
+	return nodeNum*shardsPerNode/shardNum - 1
 }

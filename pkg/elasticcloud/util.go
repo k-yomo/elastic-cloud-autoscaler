@@ -14,10 +14,14 @@ func FindHotContentTopology(topologies []*models.ElasticsearchClusterTopologyEle
 	panic("hot_content topology must exist")
 }
 
-func CalcTopologyNodeNum(topology *models.ElasticsearchClusterTopologyElement) int {
+func CalcNodeNum(topologySize *models.TopologySize, zoneCount int32) int {
 	sixtyFourGB := memory.ConvertGiBToMiB(64)
-	if *topology.Size.Value <= sixtyFourGB {
-		return int(topology.ZoneCount)
+	if *topologySize.Value <= sixtyFourGB {
+		return int(zoneCount)
 	}
-	return int(*topology.Size.Value / sixtyFourGB * topology.ZoneCount)
+	return int(*topologySize.Value / sixtyFourGB * zoneCount)
+}
+
+func CalcTopologyNodeNum(topology *models.ElasticsearchClusterTopologyElement) int {
+	return CalcNodeNum(topology.Size, topology.ZoneCount)
 }

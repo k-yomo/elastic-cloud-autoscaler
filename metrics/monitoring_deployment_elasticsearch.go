@@ -94,8 +94,8 @@ func (m *monitoringElasticsearchMetricsProvider) GetCPUUtilMetrics(ctx context.C
 	cpuUtils := make([]*AvgCPUUtil, 0, len(result.Aggregations.Histogram.Buckets))
 	for _, bucket := range result.Aggregations.Histogram.Buckets {
 		cpuUtils = append(cpuUtils, &AvgCPUUtil{
-			Timestamp:  time.UnixMilli(bucket.Key),
-			Percentage: bucket.AvgCPUUtil.Value,
+			Timestamp: time.UnixMilli(bucket.Key),
+			Percent:   bucket.AvgCPUUtil.Value,
 		})
 	}
 

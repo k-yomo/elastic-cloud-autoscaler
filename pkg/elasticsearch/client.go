@@ -8,6 +8,7 @@ import (
 	"github.com/elastic/cloud-sdk-go/pkg/util/slice"
 	esv8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"sort"
 	"strconv"
 )
 
@@ -42,13 +43,17 @@ func (n *NodeStats) DataContentNodes() NodeStatsNodes {
 }
 
 type NodeStatsNode struct {
-	ID    string   `json:"-"`
-	Roles []string `json:"roles"`
-	OS    struct {
-		CPU struct {
-			Percent float64 `json:"percent"`
-		} `json:"cpu"`
-	} `json:"os"`
+	ID    string           `json:"-"`
+	Roles []string         `json:"roles"`
+	OS    *NodeStatsNodeOS `json:"os"`
+}
+
+type NodeStatsNodeOS struct {
+	CPU *NodeStatsNodeOSCPU `json:"cpu"`
+}
+
+type NodeStatsNodeOSCPU struct {
+	Percent float64 `json:"percent"`
 }
 
 type NodeStatsNodes []*NodeStatsNode
@@ -58,6 +63,8 @@ func (n NodeStatsNodes) IDs() []string {
 	for _, node := range n {
 		ids = append(ids, node.ID)
 	}
+	// To fix order in test
+	sort.Strings(ids)
 	return ids
 }
 

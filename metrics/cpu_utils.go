@@ -3,8 +3,8 @@ package metrics
 import "time"
 
 type AvgCPUUtil struct {
-	Timestamp  time.Time
-	Percentage float64
+	Timestamp time.Time
+	Percent   float64
 }
 
 type AvgCPUUtils []*AvgCPUUtil
@@ -20,7 +20,7 @@ func (a AvgCPUUtils) After(gte time.Time) AvgCPUUtils {
 
 func (a AvgCPUUtils) AllGreaterThan(threshold float64) bool {
 	for _, cpuUtil := range a {
-		if cpuUtil.Percentage > threshold {
+		if cpuUtil.Percent <= threshold {
 			return false
 		}
 	}
@@ -29,7 +29,7 @@ func (a AvgCPUUtils) AllGreaterThan(threshold float64) bool {
 
 func (a AvgCPUUtils) AllLessThan(threshold float64) bool {
 	for _, cpuUtil := range a {
-		if cpuUtil.Percentage < threshold {
+		if cpuUtil.Percent >= threshold {
 			return false
 		}
 	}

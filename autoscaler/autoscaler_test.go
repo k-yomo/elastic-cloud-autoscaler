@@ -17,6 +17,10 @@ import (
 )
 
 func TestAutoScalar_CalcScalingOperation(t *testing.T) {
+	now := time.Now()
+	resetNow := clock.MockTime(t, now)
+	defer resetNow()
+
 	tests := []struct {
 		name         string
 		config       *Config
@@ -86,9 +90,6 @@ func TestAutoScalar_CalcScalingOperation(t *testing.T) {
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
-				now := time.Now()
-				clock.MockTime(t, now)
-
 				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
 					Info: &models.ElasticsearchClusterInfo{
 						PlanInfo: &models.ElasticsearchClusterPlansInfo{

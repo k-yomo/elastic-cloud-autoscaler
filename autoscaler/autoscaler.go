@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/elastic/cloud-sdk-go/pkg/models"
-	"github.com/k-yomo/elastic-cloud-autoscaler/metrics"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/clock"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticcloud"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticsearch"
@@ -20,9 +19,8 @@ import (
 type AutoScalar struct {
 	config *Config
 
-	ecClient        elasticcloud.Client
-	esClient        elasticsearch.Client
-	metricsProvider metrics.Provider
+	ecClient elasticcloud.Client
+	esClient elasticsearch.Client
 }
 
 func New(config *Config) (*AutoScalar, error) {

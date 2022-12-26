@@ -48,7 +48,7 @@ func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
 		return scalingOperation, nil
 	}
 
-	// We'll apply in the below order not to cause unassigned shards issue
+	// We'll apply updates in the following order not to cause unassigned shards issue
 	// - replica scale-in => node scale-in when scaling in
 	// - node scale-out => replica scale-out when scaling out
 	if scalingOperation.FromReplicaNum > scalingOperation.ToReplicaNum {

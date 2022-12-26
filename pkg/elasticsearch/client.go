@@ -202,7 +202,7 @@ func (c *clientImpl) UpdateIndexReplicaNum(ctx context.Context, indexName string
 		return fmt.Errorf("update number_of_replica: %w", err)
 	}
 
-	// TODO: wait until shard relocation finishs
+	// TODO: wait until shard relocation finishes
 
 	return nil
 }

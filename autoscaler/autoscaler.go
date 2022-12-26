@@ -100,7 +100,7 @@ func (a *AutoScalar) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		indexSettings.ShardNum,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("caluclate available topology sizes: %w", err)
+		return nil, fmt.Errorf("calculate available topology sizes: %w", err)
 	}
 
 	if len(availableTopologySizes) == 0 {

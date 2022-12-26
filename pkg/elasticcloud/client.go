@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=$GOFILE -package=mock_$GOPACKAGE -destination=../../mocks/pkg/$GOPACKAGE/mock_$GOFILE
 type Client interface {
 	GetESResourceInfo(ctx context.Context, includePlanHistory bool) (*models.ElasticsearchResourceInfo, error)
 	UpdateESHotContentTopologySize(ctx context.Context, topology *models.TopologySize) error

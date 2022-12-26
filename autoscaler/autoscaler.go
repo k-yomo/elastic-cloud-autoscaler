@@ -36,8 +36,8 @@ func New(config *Config) (*AutoScalar, error) {
 	}, nil
 }
 
-// Run executes scale in/out if needed
-// based on the configuration
+// Run executes scale in/out if needed based on the configuration
+// This method will return non-nil ScalingOperation with error when error happens after scaling operation is decided
 func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
 	scalingOperation, err := a.CalcScalingOperation(ctx)
 	if err != nil {
@@ -51,7 +51,7 @@ func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
 	// We'll apply in the below order not to cause unassigned shards issue
 	// - replica scale-in => node scale-in when scaling in
 	// - node scale-out => replica scale-out when scaling out
-	if scalingOperation.FromReplicaNum < scalingOperation.ToReplicaNum {
+	if scalingOperation.FromReplicaNum > scalingOperation.ToReplicaNum {
 		if err := a.esClient.UpdateIndexReplicaNum(ctx, a.config.Scaling.Index, scalingOperation.ToReplicaNum); err != nil {
 			return scalingOperation, fmt.Errorf("update number of replicas: %w", err)
 		}
@@ -61,7 +61,7 @@ func (a *AutoScalar) Run(ctx context.Context) (*ScalingOperation, error) {
 			return scalingOperation, fmt.Errorf("update topology size: %w", err)
 		}
 	}
-	if scalingOperation.FromReplicaNum > scalingOperation.ToReplicaNum {
+	if scalingOperation.FromReplicaNum < scalingOperation.ToReplicaNum {
 		if err := a.esClient.UpdateIndexReplicaNum(ctx, a.config.Scaling.Index, scalingOperation.ToReplicaNum); err != nil {
 			return scalingOperation, fmt.Errorf("update number of replicas: %w", err)
 		}

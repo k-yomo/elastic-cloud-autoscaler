@@ -11,6 +11,7 @@ import (
 	"strconv"
 )
 
+//go:generate mockgen -source=$GOFILE -package=mock_$GOPACKAGE -destination=../../mocks/pkg/$GOPACKAGE/mock_$GOFILE
 type Client interface {
 	GetNodeStats(ctx context.Context) (*NodeStats, error)
 	GetIndexSettings(ctx context.Context, indexName string) (*IndexSettings, error)
@@ -193,6 +194,8 @@ func (c *clientImpl) UpdateIndexReplicaNum(ctx context.Context, indexName string
 	if err := ExtractError(resp); err != nil {
 		return fmt.Errorf("update number_of_replica: %w", err)
 	}
+
+	// TODO: wait until shard relocation finishs
 
 	return nil
 }

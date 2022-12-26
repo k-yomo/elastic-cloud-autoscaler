@@ -18,6 +18,11 @@ func Test_validateConfig(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name:    "config cannot be nil",
+			args:    args{config: nil},
+			wantErr: true,
+		},
+		{
 			name: "valid config",
 			args: args{
 				config: &Config{
@@ -45,6 +50,11 @@ func Test_validateConfig(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name:    "invalid config",
+			args:    args{config: &Config{}},
+			wantErr: true,
 		},
 		{
 			name: "cron schedule is invalid",

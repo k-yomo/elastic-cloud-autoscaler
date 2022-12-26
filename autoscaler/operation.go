@@ -29,10 +29,6 @@ func (s *ScalingOperation) Direction() ScalingDirection {
 	}
 }
 
-func (s *ScalingOperation) NeedReplicaNumUpdate() bool {
-	return s.FromReplicaNum != s.ToReplicaNum
-}
-
 func (s *ScalingOperation) NeedTopologySizeUpdate() bool {
 	return *s.FromTopologySize.Value != *s.ToTopologySize.Value
 }

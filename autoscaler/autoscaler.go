@@ -3,17 +3,16 @@ package autoscaler
 import (
 	"context"
 	"fmt"
+	"math"
+	"time"
+
 	"github.com/elastic/cloud-sdk-go/pkg/models"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/clock"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticcloud"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticsearch"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/memory"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/timeutil"
-	"github.com/k0kubun/pp/v3"
-	"github.com/robfig/cron/v3"
 	"golang.org/x/sync/errgroup"
-	"math"
-	"time"
 )
 
 type AutoScaler struct {
@@ -130,14 +129,10 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 			shouldScaleIn := cpuUtils.After(now.Add(-autoScalingConfig.ScaleInThresholdDuration)).AllLessThan(float64(autoScalingConfig.DesiredCPUUtilPercent))
 			if shouldScaleOut || shouldScaleIn {
 				minDiffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - currentCPUUtil)
-				pp.Println("currentDiffFromDesiredCPUUtil", minDiffFromDesiredCPUUtil)
 				for _, topologySize := range availableTopologySizes {
 					nodeNum := elasticcloud.CalcNodeNum(topologySize, currentTopology.ZoneCount)
 					estimatedCPUUtil := dataContentNodes.TotalCPUUtil() / float64(nodeNum)
 					diffFromDesiredCPUUtil := math.Abs(float64(autoScalingConfig.DesiredCPUUtilPercent) - estimatedCPUUtil)
-					pp.Println("nodeNum", nodeNum)
-					pp.Println("estimatedCPUUtil", estimatedCPUUtil)
-					pp.Println("diffFromDesiredCPUUtil", diffFromDesiredCPUUtil)
 					if diffFromDesiredCPUUtil < minDiffFromDesiredCPUUtil {
 						desiredTopologySize = topologySize
 						minDiffFromDesiredCPUUtil = diffFromDesiredCPUUtil

@@ -2,6 +2,7 @@ package autoscaler
 
 import (
 	"context"
+	"github.com/go-openapi/strfmt"
 	"testing"
 	"time"
 
@@ -211,6 +212,83 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				FromReplicaNum:   1,
 				ToReplicaNum:     1,
 				Reason:           "current or desired topology size '128g' is greater than max topology size '64g'",
+			},
+		},
+		{
+			name: "scaling is not available when cool down period",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(4)),
+					Index:                  "test-index",
+					ShardsPerNode:          1,
+					AutoScaling: &AutoScalingConfig{
+						DesiredCPUUtilPercent:     50,
+						ScaleOutThresholdDuration: 10 * time.Minute,
+						ScaleOutCoolDownDuration:  10 * time.Minute,
+					},
+				},
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(SixtyFourGiBNodeNumToTopologySize(2), 2),
+							History: []*models.ElasticsearchClusterPlanInfo{
+								{
+									Plan: &models.ElasticsearchClusterPlan{
+										ClusterTopology: []*models.ElasticsearchClusterTopologyElement{
+											{
+												ID:        string(elasticcloud.TopologyIDHotContent),
+												Size:      elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+												ZoneCount: 2,
+											},
+										},
+									},
+									AttemptEndTime: func() strfmt.DateTime {
+										dt, _ := strfmt.ParseDateTime(now.Add(-1 * time.Hour).Format(time.RFC3339))
+										return dt
+									}(),
+								},
+								{
+									Plan: &models.ElasticsearchClusterPlan{
+										ClusterTopology: []*models.ElasticsearchClusterTopologyElement{
+											{
+												ID:        string(elasticcloud.TopologyIDHotContent),
+												Size:      elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+												ZoneCount: 2,
+											},
+										},
+									},
+									AttemptEndTime: func() strfmt.DateTime {
+										dt, _ := strfmt.ParseDateTime(now.Format(time.RFC3339))
+										return dt
+									}(),
+								},
+							},
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
+					Nodes: map[string]*elasticsearch.NodeStatsNode{
+						"node-0001": newNodeStatsNode("node-0001", 80),
+						"node-0002": newNodeStatsNode("node-0002", 80),
+						"node-0003": newNodeStatsNode("node-0003", 80),
+						"node-0004": newNodeStatsNode("node-0004", 80),
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 1,
+				}, nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				FromReplicaNum:   1,
+				ToReplicaNum:     1,
+				Reason:           "",
 			},
 		},
 		{

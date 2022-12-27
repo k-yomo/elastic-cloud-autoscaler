@@ -265,7 +265,7 @@ func (a *AutoScaler) getDataForDecidingScalingOperation(ctx context.Context) (
 func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchClusterPlansInfo) (bool, error) {
 	currentTopology := elasticcloud.FindHotContentTopology(planInfo.Current.Plan.ClusterTopology)
 
-	var scaledUp bool
+	var scaledOut bool
 	var lastSizeUpdatedTime time.Time
 	// plan history is order by oldest
 	for i := len(planInfo.History) - 1; i >= 0; i-- {
@@ -273,7 +273,7 @@ func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchCluste
 		if *currentTopology.Size.Value == *topology.Size.Value {
 			continue
 		} else if *currentTopology.Size.Value > *topology.Size.Value {
-			scaledUp = true
+			scaledOut = true
 		}
 		lastSizeUpdatedAt, err := time.Parse(timeutil.RFC3339Milli, planInfo.History[i].AttemptEndTime.String())
 		if err != nil {
@@ -286,12 +286,12 @@ func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchCluste
 	if lastSizeUpdatedTime.IsZero() {
 		return false, nil
 	}
-
 	now := clock.Now()
-	if scaledUp {
-		return now.Before(lastSizeUpdatedTime.Add(time.Second * a.config.Scaling.AutoScaling.ScaleOutCoolDownDuration)), nil
+
+	if scaledOut {
+		return !now.After(lastSizeUpdatedTime.Add(a.config.Scaling.AutoScaling.ScaleOutCoolDownDuration)), nil
 	} else {
-		return now.Before(lastSizeUpdatedTime.Add(time.Second * a.config.Scaling.AutoScaling.ScaleInCoolDownDuration)), nil
+		return !now.After(lastSizeUpdatedTime.Add(a.config.Scaling.AutoScaling.ScaleInCoolDownDuration)), nil
 	}
 }
 

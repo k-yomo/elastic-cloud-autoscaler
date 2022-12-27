@@ -3,12 +3,13 @@ package autoscaler
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/elastic/cloud-sdk-go/pkg/api"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-playground/validator/v10"
 	"github.com/k-yomo/elastic-cloud-autoscaler/metrics"
 	"github.com/robfig/cron/v3"
-	"time"
 )
 
 type Config struct {
@@ -33,7 +34,9 @@ type ScalingConfig struct {
 	// NOTE: Currently we only support 64GB node for simplicity
 	DefaultMaxSizeMemoryGB int `validate:"gte=64,gtefield=DefaultMinSizeMemoryGB"`
 
-	AutoScaling       *AutoScalingConfig
+	AutoScaling *AutoScalingConfig
+	// If the time is within multiple schedules, the last schedule will be applied
+	// e.g. [{min: 1, max: 2}, {min:2, max:4}] => min: 2, max: 4
 	ScheduledScalings []*ScheduledScalingConfig
 
 	// Index to update replicas when scaling out/in
@@ -60,6 +63,7 @@ type AutoScalingConfig struct {
 	ScaleInCoolDownDuration  time.Duration `validate:"gte=0"`
 }
 
+// ScheduledScalingConfig represents scheduled min/max memory max size within the period
 type ScheduledScalingConfig struct {
 	// MinSizeMemoryGB is the minimum memory size during the specified period
 	// If 0, then `ScalingConfig.DefaultMinSizeMemoryGB` will be used

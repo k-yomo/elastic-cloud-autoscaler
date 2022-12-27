@@ -305,13 +305,10 @@ func calcMinMaxTopologySize(config ScalingConfig) (min *models.TopologySize, max
 			return nil, nil, fmt.Errorf("parse cron scaling schedule: %w", err)
 		}
 		scheduledAt := schedule.Next(now.Add(-scheduledScaling.Duration))
-		if scheduledAt.Before(now) && scheduledAt.Add(scheduledScaling.Duration).After(now) {
-			if scheduledScaling.MinSizeMemoryGB > 0 {
-				minSizeMemoryGB = scheduledScaling.MinSizeMemoryGB
-			}
-			if scheduledScaling.MinSizeMemoryGB > 0 {
-				maxSizeMemoryGB = scheduledScaling.MaxSizeMemoryGB
-			}
+		isWithinScheduledPeriod := !scheduledAt.After(now) && !scheduledAt.Add(scheduledScaling.Duration).Before(now)
+		if isWithinScheduledPeriod {
+			minSizeMemoryGB = scheduledScaling.MinSizeMemoryGB
+			maxSizeMemoryGB = scheduledScaling.MaxSizeMemoryGB
 		}
 	}
 

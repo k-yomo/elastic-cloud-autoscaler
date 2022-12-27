@@ -12,6 +12,7 @@ import (
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticsearch"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/memory"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/timeutil"
+	"github.com/robfig/cron/v3"
 	"golang.org/x/sync/errgroup"
 )
 

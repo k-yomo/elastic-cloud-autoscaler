@@ -123,9 +123,9 @@ func (c *clientImpl) GetIndexSettings(ctx context.Context, indexName string) (*I
 	}
 
 	var indexSettings map[string]struct {
-		Index struct {
-			Settings *IndexSettings `json:"settings"`
-		} `json:"index"`
+		Settings struct {
+			Index *IndexSettings `json:"index"`
+		} `json:"settings"`
 		IndexSettings
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&indexSettings); err != nil {
@@ -137,7 +137,7 @@ func (c *clientImpl) GetIndexSettings(ctx context.Context, indexName string) (*I
 		return nil, errors.New("index name must not be alias")
 	}
 
-	return index.Index.Settings, nil
+	return index.Settings.Index, nil
 }
 
 type IndexHealth struct {

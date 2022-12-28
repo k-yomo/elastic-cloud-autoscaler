@@ -70,7 +70,7 @@ func (a *AutoScaler) Run(ctx context.Context) (*ScalingOperation, error) {
 }
 
 func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperation, error) {
-	esResource, nodeStats, indexSettings, err := a.getDataForDecidingScalingOperation(ctx)
+	esResource, indexSettings, err := a.getDataForDecidingScalingOperation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get required data for deciding scaling operation: %w", err)
 	}
@@ -116,6 +116,10 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		}
 
 		if !isWithinCoolDownPeriod {
+			nodeStats, err := a.esClient.GetNodeStats(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("fetch node stats: %w", err)
+			}
 			now := clock.Now()
 			dataContentNodes := nodeStats.DataContentNodes()
 			currentCPUUtil := dataContentNodes.AvgCPUUtil()
@@ -221,7 +225,6 @@ func calcAvailableTopologySizes(
 
 func (a *AutoScaler) getDataForDecidingScalingOperation(ctx context.Context) (
 	*models.ElasticsearchResourceInfo,
-	*elasticsearch.NodeStats,
 	*elasticsearch.IndexSettings,
 	error,
 ) {
@@ -232,16 +235,6 @@ func (a *AutoScaler) getDataForDecidingScalingOperation(ctx context.Context) (
 		esResource, err = a.ecClient.GetESResourceInfo(ctx, true)
 		if err != nil {
 			return fmt.Errorf("fetch elasticsearch resource info: %w", err)
-		}
-		return nil
-	})
-
-	var nodeStats *elasticsearch.NodeStats
-	eg.Go(func() error {
-		var err error
-		nodeStats, err = a.esClient.GetNodeStats(ctx)
-		if err != nil {
-			return fmt.Errorf("fetch node stats: %w", err)
 		}
 		return nil
 	})
@@ -257,9 +250,9 @@ func (a *AutoScaler) getDataForDecidingScalingOperation(ctx context.Context) (
 	})
 
 	if err := eg.Wait(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	return esResource, nodeStats, indexSettings, nil
+	return esResource, indexSettings, nil
 }
 
 func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchClusterPlansInfo) (bool, error) {

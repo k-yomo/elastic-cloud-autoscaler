@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+
 	"github.com/elastic/cloud-sdk-go/pkg/util/slice"
 	esv8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"sort"
-	"strconv"
 )
 
 //go:generate mockgen -source=$GOFILE -package=mock_$GOPACKAGE -destination=../../mocks/pkg/$GOPACKAGE/mock_$GOFILE
@@ -39,6 +40,10 @@ func (n *NodeStats) DataContentNodes() NodeStatsNodes {
 			dataContentNodes = append(dataContentNodes, node)
 		}
 	}
+	// To fix order in test
+	sort.Slice(dataContentNodes, func(i, j int) bool {
+		return dataContentNodes[i].ID < dataContentNodes[j].ID
+	})
 	return dataContentNodes
 }
 

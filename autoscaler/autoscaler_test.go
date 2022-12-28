@@ -2,9 +2,13 @@ package autoscaler
 
 import (
 	"context"
-	"github.com/go-openapi/strfmt"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/elastic/cloud-sdk-go/pkg/api"
+	esv8 "github.com/elastic/go-elasticsearch/v8"
+	"github.com/go-openapi/strfmt"
 
 	"github.com/elastic/cloud-sdk-go/pkg/models"
 	"github.com/golang/mock/gomock"
@@ -17,6 +21,230 @@ import (
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticcloud"
 	"github.com/k-yomo/elastic-cloud-autoscaler/pkg/elasticsearch"
 )
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	validConfig := &Config{
+		DeploymentID:        "test",
+		ElasticCloudClient:  &api.API{},
+		ElasticsearchClient: &esv8.TypedClient{},
+		Scaling: ScalingConfig{
+			DefaultMinSizeMemoryGB: 128,
+			DefaultMaxSizeMemoryGB: 256,
+
+			AutoScaling: &AutoScalingConfig{
+				MetricsProvider:       &mock_metrics.MockProvider{},
+				DesiredCPUUtilPercent: 50,
+			},
+			ScheduledScalings: []*ScheduledScalingConfig{
+				{
+					StartCronSchedule: "TZ=UTC 29 14 * * *",
+					Duration:          1 * time.Hour,
+					MinSizeMemoryGB:   192,
+					MaxSizeMemoryGB:   256,
+				},
+			},
+			Index:         "test-index",
+			ShardsPerNode: 1,
+		},
+	}
+
+	type args struct {
+		config *Config
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *AutoScaler
+		wantErr bool
+	}{
+		{
+			name: "valid config",
+			args: args{
+				config: validConfig,
+			},
+			want: &AutoScaler{
+				config:   validConfig,
+				ecClient: elasticcloud.NewClient(validConfig.ElasticCloudClient, validConfig.DeploymentID),
+				esClient: elasticsearch.NewClient(validConfig.ElasticsearchClient),
+			},
+		},
+		{
+			name: "invalid config",
+			args: args{
+				config: nil,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.args.config)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAutoScaler_Run(t *testing.T) {
+	tests := []struct {
+		name         string
+		config       *Config
+		prepareMocks func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider)
+		want         *ScalingOperation
+		wantErr      bool
+	}{
+		{
+			name: "scaling out",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                  "test-index",
+					ShardsPerNode:          1,
+				},
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(64, 2),
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 1,
+				}, nil)
+
+				ecClient.EXPECT().
+					UpdateESHotContentTopologySize(gomock.Any(), elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2))).
+					Return(nil)
+
+				esClient.EXPECT().
+					UpdateIndexReplicaNum(gomock.Any(), "test-index", 3).
+					Return(nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				FromReplicaNum:   1,
+				ToReplicaNum:     3,
+				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+			},
+		},
+		{
+			name: "scaling in",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					Index:                  "test-index",
+					ShardsPerNode:          1,
+				},
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(SixtyFourGiBNodeNumToTopologySize(2), 2),
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 3,
+				}, nil)
+
+				esClient.EXPECT().
+					UpdateIndexReplicaNum(gomock.Any(), "test-index", 1).
+					Return(nil)
+
+				ecClient.EXPECT().
+					UpdateESHotContentTopologySize(gomock.Any(), elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1))).
+					Return(nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+				FromReplicaNum:   3,
+				ToReplicaNum:     1,
+				Reason:           "current or desired topology size '128g' is greater than max topology size '64g'",
+			},
+		},
+		{
+			name: "scaling operation doesn't run when DryRun = true",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                  "test-index",
+					ShardsPerNode:          1,
+				},
+				DryRun: true,
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(64, 2),
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 1,
+				}, nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				FromReplicaNum:   1,
+				ToReplicaNum:     3,
+				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockECClient := mock_elasticcloud.NewMockClient(ctrl)
+			mockESClient := mock_elasticsearch.NewMockClient(ctrl)
+			mockMetricsProvider := mock_metrics.NewMockProvider(ctrl)
+
+			if tt.prepareMocks != nil {
+				tt.prepareMocks(mockECClient, mockESClient, mockMetricsProvider)
+			}
+
+			if tt.config.Scaling.AutoScaling != nil {
+				tt.config.Scaling.AutoScaling.MetricsProvider = mockMetricsProvider
+			}
+
+			a := &AutoScaler{
+				config:   tt.config,
+				ecClient: mockECClient,
+				esClient: mockESClient,
+			}
+			got, err := a.Run(context.Background())
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Run() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 	now := time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -47,12 +275,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 						PlanInfo: &models.ElasticsearchClusterPlansInfo{
 							Current: newElasticsearchClusterPlanInfo(64, 2),
 						},
-					},
-				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{
-						"node-0001": newNodeStatsNode("node-0001", 50),
-						"node-0002": newNodeStatsNode("node-0002", 50),
 					},
 				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
@@ -149,12 +371,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 						},
 					},
 				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{
-						"node-0001": newNodeStatsNode("node-0001", 50),
-						"node-0002": newNodeStatsNode("node-0002", 50),
-					},
-				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
 					ShardNum:   1,
 					ReplicaNum: 1,
@@ -193,12 +409,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 						PlanInfo: &models.ElasticsearchClusterPlansInfo{
 							Current: newElasticsearchClusterPlanInfo(128, 2),
 						},
-					},
-				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{
-						"node-0001": newNodeStatsNode("node-0001", 50),
-						"node-0002": newNodeStatsNode("node-0002", 50),
 					},
 				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
@@ -270,14 +480,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 						},
 					},
 				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{
-						"node-0001": newNodeStatsNode("node-0001", 80),
-						"node-0002": newNodeStatsNode("node-0002", 80),
-						"node-0003": newNodeStatsNode("node-0003", 80),
-						"node-0004": newNodeStatsNode("node-0004", 80),
-					},
-				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
 					ShardNum:   1,
 					ReplicaNum: 1,
@@ -310,9 +512,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 							Pending: newElasticsearchClusterPlanInfo(64, 2),
 						},
 					},
-				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{},
 				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
 					ShardNum:   1,
@@ -348,9 +547,6 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 							Current: newElasticsearchClusterPlanInfo(64, 2),
 						},
 					},
-				}, nil)
-				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
-					Nodes: map[string]*elasticsearch.NodeStatsNode{},
 				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
 					ShardNum:   3,

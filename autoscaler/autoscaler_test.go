@@ -291,7 +291,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "scaling out - cpu exceeds threshold",
+			name: "scaling out - cpu utilization exceeds threshold",
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
@@ -341,7 +341,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(5)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     9,
-				Reason:           "CPU utilization (currently '80.0%') is greater than the desired CPU utilization '50%' for 600 seconds",
+				Reason:           "CPU utilization (currently '80.0%') is higher than the desired CPU utilization '50%' for 600 seconds",
 			},
 		},
 		{
@@ -425,7 +425,61 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "scaling is not available when cool down period",
+			name: "scaling in - cpu utilization is lower than threshold",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(6)),
+					Index:                  "test-index",
+					ShardsPerNode:          1,
+					AutoScaling: &AutoScalingConfig{
+						DesiredCPUUtilPercent:     50,
+						ScaleOutThresholdDuration: 10 * time.Minute,
+						ScaleInThresholdDuration:  10 * time.Minute,
+					},
+				},
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(SixtyFourGiBNodeNumToTopologySize(3), 2),
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetNodeStats(gomock.Any()).Return(&elasticsearch.NodeStats{
+					Nodes: map[string]*elasticsearch.NodeStatsNode{
+						"node-0001": newNodeStatsNode("node-0001", 20),
+						"node-0002": newNodeStatsNode("node-0002", 20),
+						"node-0003": newNodeStatsNode("node-0003", 20),
+						"node-0004": newNodeStatsNode("node-0004", 20),
+						"node-0005": newNodeStatsNode("node-0005", 20),
+						"node-0006": newNodeStatsNode("node-0006", 20),
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 1,
+				}, nil)
+				metricsProvider.EXPECT().GetCPUUtilMetrics(
+					gomock.Any(),
+					[]string{"node-0001", "node-0002", "node-0003", "node-0004", "node-0005", "node-0006"},
+					now.Add(-10*time.Minute),
+				).Return(metrics.AvgCPUUtils{
+					{Percent: 20, Timestamp: now},
+				}, nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(3)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
+				FromReplicaNum:   1,
+				ToReplicaNum:     1,
+				Reason:           "CPU utilization (currently '20.0%') is lower than the desired CPU utilization '50%' for 600 seconds",
+			},
+		},
+		{
+			name: "scaling is not eligible when cool down period",
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
@@ -494,7 +548,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "scaling is not available when pending plan exists",
+			name: "scaling is not eligible when pending plan exists",
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
@@ -527,7 +581,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "scaling is not available when no available topology size",
+			name: "scaling is not eligible when no available topology size",
 			// min/max node: 2, zone count: 2 => 4 nodes
 			// shard num: 3, shards per node: 4
 			// To satisfy the requirement, 16 shards will be needed, but 3x shards can't be 16

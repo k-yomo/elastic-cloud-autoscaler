@@ -153,14 +153,14 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 				)
 				if shouldScaleOut {
 					scalingOperation.Reason = fmt.Sprintf(
-						"CPU utilization (currently '%.1f%%') is greater than the desired CPU utilization '%d%%' for %.0f seconds",
+						"CPU utilization (currently '%.1f%%') is higher than the desired CPU utilization '%d%%' for %.0f seconds",
 						currentCPUUtil,
 						autoScalingConfig.DesiredCPUUtilPercent,
 						autoScalingConfig.ScaleOutThresholdDuration.Seconds(),
 					)
 				} else if shouldScaleIn {
 					scalingOperation.Reason = fmt.Sprintf(
-						"CPU utilization (currently '%.1f%%') is less than the desired CPU utilization '%d%%' for %.0f seconds",
+						"CPU utilization (currently '%.1f%%') is lower than the desired CPU utilization '%d%%' for %.0f seconds",
 						currentCPUUtil,
 						autoScalingConfig.DesiredCPUUtilPercent,
 						autoScalingConfig.ScaleInThresholdDuration.Seconds(),

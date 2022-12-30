@@ -341,7 +341,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(5)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     9,
-				Reason:           "CPU utilization is greater than the desired CPU utilization '50%' for 600 seconds",
+				Reason:           "CPU utilization (currently '80.0%') is greater than the desired CPU utilization '50%' for 600 seconds",
 			},
 		},
 		{

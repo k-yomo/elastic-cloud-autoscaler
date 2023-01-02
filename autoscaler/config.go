@@ -46,12 +46,6 @@ type ScalingConfig struct {
 
 type ScalingThresholdDurationMinute int
 
-const (
-	ScalingThresholdDuration1Minute  = 1
-	ScalingThresholdDuration5Minute  = 5
-	ScalingThresholdDuration15Minute = 15
-)
-
 type AutoScalingConfig struct {
 	MetricsProvider       metrics.Provider `validate:"required"`
 	DesiredCPUUtilPercent int              `validate:"required,gt=0,lt=100"`

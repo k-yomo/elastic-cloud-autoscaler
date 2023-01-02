@@ -544,7 +544,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     1,
-				Reason:           "",
+				Reason:           "Currently within cool down period",
 			},
 		},
 		{

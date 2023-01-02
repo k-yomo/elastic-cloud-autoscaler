@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/elastic/cloud-sdk-go/pkg/api"
 	"github.com/elastic/cloud-sdk-go/pkg/auth"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/k-yomo/elastic-cloud-autoscaler/autoscaler"
 	"github.com/k-yomo/elastic-cloud-autoscaler/metrics"
-	"log"
-	"net/http"
-	"os"
-	"time"
 )
 
 func main() {
@@ -56,18 +57,18 @@ func realMain() error {
 		DeploymentID:        deploymentID,
 		ElasticsearchClient: esClient,
 		Scaling: autoscaler.ScalingConfig{
-			DefaultMinSizeMemoryGB: 64,
-			DefaultMaxSizeMemoryGB: 382,
+			DefaultMinMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(1)),
+			DefaultMaxMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(6)),
 			AutoScaling: &autoscaler.AutoScalingConfig{
 				MetricsProvider:       metrics.NewMonitoringElasticsearchMetricsProvider(monitoringESClient),
 				DesiredCPUUtilPercent: 50,
 			},
 			ScheduledScalings: []*autoscaler.ScheduledScalingConfig{
 				{
-					StartCronSchedule: "TZ=UTC 0 0 * * *",
-					Duration:          1 * time.Hour,
-					MinSizeMemoryGB:   128,
-					MaxSizeMemoryGB:   384,
+					StartCronSchedule:  "TZ=UTC 0 0 * * *",
+					Duration:           1 * time.Hour,
+					MinMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(2)),
+					MaxMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(6)),
 				},
 			},
 			Index:         "test-index",

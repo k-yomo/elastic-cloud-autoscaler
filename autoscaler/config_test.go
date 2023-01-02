@@ -1,11 +1,12 @@
 package autoscaler
 
 import (
+	"testing"
+	"time"
+
 	"github.com/elastic/cloud-sdk-go/pkg/api"
 	"github.com/elastic/go-elasticsearch/v8"
 	mock_metrics "github.com/k-yomo/elastic-cloud-autoscaler/mocks/metrics"
-	"testing"
-	"time"
 )
 
 func Test_validateConfig(t *testing.T) {
@@ -30,8 +31,8 @@ func Test_validateConfig(t *testing.T) {
 					ElasticCloudClient:  &api.API{},
 					ElasticsearchClient: &elasticsearch.TypedClient{},
 					Scaling: ScalingConfig{
-						DefaultMinSizeMemoryGB: 128,
-						DefaultMaxSizeMemoryGB: 256,
+						DefaultMinMemoryGBPerZone: 128,
+						DefaultMaxMemoryGBPerZone: 256,
 
 						AutoScaling: &AutoScalingConfig{
 							MetricsProvider:       &mock_metrics.MockProvider{},
@@ -39,10 +40,10 @@ func Test_validateConfig(t *testing.T) {
 						},
 						ScheduledScalings: []*ScheduledScalingConfig{
 							{
-								StartCronSchedule: "TZ=UTC 29 14 * * *",
-								Duration:          1 * time.Hour,
-								MinSizeMemoryGB:   192,
-								MaxSizeMemoryGB:   256,
+								StartCronSchedule:  "TZ=UTC 29 14 * * *",
+								Duration:           1 * time.Hour,
+								MinMemoryGBPerZone: 192,
+								MaxMemoryGBPerZone: 256,
 							},
 						},
 						Index:         "test-index",
@@ -64,8 +65,8 @@ func Test_validateConfig(t *testing.T) {
 					ElasticCloudClient:  &api.API{},
 					ElasticsearchClient: &elasticsearch.TypedClient{},
 					Scaling: ScalingConfig{
-						DefaultMinSizeMemoryGB: 128,
-						DefaultMaxSizeMemoryGB: 256,
+						DefaultMinMemoryGBPerZone: 128,
+						DefaultMaxMemoryGBPerZone: 256,
 
 						AutoScaling: &AutoScalingConfig{
 							MetricsProvider:       &mock_metrics.MockProvider{},
@@ -73,10 +74,10 @@ func Test_validateConfig(t *testing.T) {
 						},
 						ScheduledScalings: []*ScheduledScalingConfig{
 							{
-								StartCronSchedule: "invalid",
-								Duration:          1 * time.Hour,
-								MinSizeMemoryGB:   192,
-								MaxSizeMemoryGB:   256,
+								StartCronSchedule:  "invalid",
+								Duration:           1 * time.Hour,
+								MinMemoryGBPerZone: 192,
+								MaxMemoryGBPerZone: 256,
 							},
 						},
 						Index:         "test-index",

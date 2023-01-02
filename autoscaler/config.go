@@ -23,16 +23,16 @@ type Config struct {
 }
 
 type ScalingConfig struct {
-	// Default memory min size. It can be overwritten by ScheduledScalingConfig.MinSizeMemoryGB.
+	// Default memory min size. It can be overwritten by ScheduledScalingConfig.MinMemoryGBPerZone.
 	// Available number is only 64,...(64xN node)
 	// If you have multiple zone, this memory is per zone.
 	// NOTE: Currently we only support 64GB node for simplicity
-	DefaultMinSizeMemoryGB int `validate:"gte=64"`
-	// Default memory max size. It can be overwritten by ScheduledScalingConfig.MaxSizeMemoryGB.
+	DefaultMinMemoryGBPerZone int `validate:"gte=64"`
+	// Default memory max size. It can be overwritten by ScheduledScalingConfig.MaxMemoryGBPerZone.
 	// Available number is only 64,...(64xN node)
 	// If you have multiple zone, this memory is per zone.
 	// NOTE: Currently we only support 64GB node for simplicity
-	DefaultMaxSizeMemoryGB int `validate:"gte=64,gtefield=DefaultMinSizeMemoryGB"`
+	DefaultMaxMemoryGBPerZone int `validate:"gte=64,gtefield=DefaultMinMemoryGBPerZone"`
 
 	AutoScaling *AutoScalingConfig
 	// If the time is within multiple schedules, the last schedule will be applied
@@ -59,14 +59,14 @@ type AutoScalingConfig struct {
 
 // ScheduledScalingConfig represents scheduled min/max memory max size within the period
 type ScheduledScalingConfig struct {
-	// MinSizeMemoryGB is the minimum memory size during the specified period
-	// If 0, then `ScalingConfig.DefaultMinSizeMemoryGB` will be used
+	// MinMemoryGBPerZone is the minimum memory size during the specified period
+	// If 0, then `ScalingConfig.DefaultMinMemoryGBPerZone` will be used
 	// NOTE: Currently we only support 64GB node for simplicity
-	MinSizeMemoryGB int `validate:"gte=64"`
-	// MaxSizeMemoryGB is the maximum memory size during the specified period
-	// If 0, then `ScalingConfig.DefaultMaxSizeMemoryGB` will be used
+	MinMemoryGBPerZone int `validate:"gte=64"`
+	// MaxMemoryGBPerZone is the maximum memory size during the specified period
+	// If 0, then `ScalingConfig.DefaultMaxMemoryGBPerZone` will be used
 	// NOTE: Currently we only support 64GB node for simplicity
-	MaxSizeMemoryGB int `validate:"gte=64,gtefield=MinSizeMemoryGB"`
+	MaxMemoryGBPerZone int `validate:"gte=64,gtefield=MinMemoryGBPerZone"`
 	// cron format schedule
 	// default timezone is machine local timezone,
 	// if you want to specify, set TZ= prefix (e.g. `TZ=UTC 0 0 0 0 0`)

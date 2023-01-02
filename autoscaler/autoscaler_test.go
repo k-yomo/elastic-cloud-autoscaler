@@ -30,8 +30,8 @@ func TestNew(t *testing.T) {
 		ElasticCloudClient:  &api.API{},
 		ElasticsearchClient: &esv8.TypedClient{},
 		Scaling: ScalingConfig{
-			DefaultMinSizeMemoryGB: 128,
-			DefaultMaxSizeMemoryGB: 256,
+			DefaultMinMemoryGBPerZone: 128,
+			DefaultMaxMemoryGBPerZone: 256,
 
 			AutoScaling: &AutoScalingConfig{
 				MetricsProvider:       &mock_metrics.MockProvider{},
@@ -39,10 +39,10 @@ func TestNew(t *testing.T) {
 			},
 			ScheduledScalings: []*ScheduledScalingConfig{
 				{
-					StartCronSchedule: "TZ=UTC 29 14 * * *",
-					Duration:          1 * time.Hour,
-					MinSizeMemoryGB:   192,
-					MaxSizeMemoryGB:   256,
+					StartCronSchedule:  "TZ=UTC 29 14 * * *",
+					Duration:           1 * time.Hour,
+					MinMemoryGBPerZone: 192,
+					MaxMemoryGBPerZone: 256,
 				},
 			},
 			Index:         "test-index",
@@ -105,10 +105,10 @@ func TestAutoScaler_Run(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
@@ -145,10 +145,10 @@ func TestAutoScaler_Run(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
@@ -185,10 +185,10 @@ func TestAutoScaler_Run(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 				},
 				DryRun: true,
 			},
@@ -263,10 +263,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
@@ -295,10 +295,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(3)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(6)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(3)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(6)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 					AutoScaling: &AutoScalingConfig{
 						DesiredCPUUtilPercent:     50,
 						ScaleOutThresholdDuration: 10 * time.Minute,
@@ -349,16 +349,16 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 					ScheduledScalings: []*ScheduledScalingConfig{
 						{
-							MinSizeMemoryGB:   int(SixtyFourGiBNodeNumToTopologySize(2)),
-							MaxSizeMemoryGB:   int(SixtyFourGiBNodeNumToTopologySize(2)),
-							StartCronSchedule: "TZ=UTC 0 0 * * *",
-							Duration:          time.Minute,
+							MinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+							MaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+							StartCronSchedule:  "TZ=UTC 0 0 * * *",
+							Duration:           time.Minute,
 						},
 					},
 				},
@@ -389,16 +389,16 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 					ScheduledScalings: []*ScheduledScalingConfig{
 						{
-							MinSizeMemoryGB:   int(SixtyFourGiBNodeNumToTopologySize(1)),
-							MaxSizeMemoryGB:   int(SixtyFourGiBNodeNumToTopologySize(1)),
-							StartCronSchedule: "TZ=UTC 0 0 * * *",
-							Duration:          time.Minute,
+							MinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+							MaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+							StartCronSchedule:  "TZ=UTC 0 0 * * *",
+							Duration:           time.Minute,
 						},
 					},
 				},
@@ -429,10 +429,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(6)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(6)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 					AutoScaling: &AutoScalingConfig{
 						DesiredCPUUtilPercent:     50,
 						ScaleOutThresholdDuration: 10 * time.Minute,
@@ -483,10 +483,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(1)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(4)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(1)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(4)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 					AutoScaling: &AutoScalingConfig{
 						DesiredCPUUtilPercent:     50,
 						ScaleOutThresholdDuration: 10 * time.Minute,
@@ -552,10 +552,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          1,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
@@ -588,10 +588,10 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 			config: &Config{
 				DeploymentID: "test",
 				Scaling: ScalingConfig{
-					DefaultMinSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					DefaultMaxSizeMemoryGB: int(SixtyFourGiBNodeNumToTopologySize(2)),
-					Index:                  "test-index",
-					ShardsPerNode:          4,
+					DefaultMinMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					DefaultMaxMemoryGBPerZone: int(SixtyFourGiBNodeNumToTopologySize(2)),
+					Index:                     "test-index",
+					ShardsPerNode:             4,
 				},
 			},
 			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {

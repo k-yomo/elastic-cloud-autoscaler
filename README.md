@@ -78,8 +78,8 @@ func realMain() error {
 		DeploymentID:        deploymentID,
 		ElasticsearchClient: esClient,
 		Scaling: autoscaler.ScalingConfig{
-			DefaultMinSizeMemoryGB: 64,
-			DefaultMaxSizeMemoryGB: 382,
+			DefaultMinMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(1)),
+			DefaultMaxMemoryGBPerZone: int(autoscaler.SixtyFourGiBNodeNumToTopologySize(6)),
 			AutoScaling: &autoscaler.AutoScalingConfig{
 				MetricsProvider:       metrics.NewMonitoringElasticsearchMetricsProvider(monitoringESClient),
 				DesiredCPUUtilPercent: 50,
@@ -88,8 +88,8 @@ func realMain() error {
 				{
 					StartCronSchedule: "TZ=UTC 0 0 * * *",
 					Duration:          1 * time.Hour,
-					MinSizeMemoryGB:   128,
-					MaxSizeMemoryGB:   384,
+					MinMemoryGBPerZone:   int(autoscaler.SixtyFourGiBNodeNumToTopologySize(2)),
+					MaxMemoryGBPerZone:   int(autoscaler.SixtyFourGiBNodeNumToTopologySize(6)),
 				},
 			},
 			Index: "test-index",

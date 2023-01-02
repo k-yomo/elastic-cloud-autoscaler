@@ -251,8 +251,8 @@ func (a *AutoScaler) isWithinCoolDownPeriod(planInfo *models.ElasticsearchCluste
 
 func calcMinMaxTopologySize(config ScalingConfig) (min *models.TopologySize, max *models.TopologySize, err error) {
 	now := clock.Now()
-	minSizeMemoryGB := config.DefaultMinSizeMemoryGB
-	maxSizeMemoryGB := config.DefaultMaxSizeMemoryGB
+	minSizeMemoryGB := config.DefaultMinMemoryGBPerZone
+	maxSizeMemoryGB := config.DefaultMaxMemoryGBPerZone
 	for _, scheduledScaling := range config.ScheduledScalings {
 		schedule, err := cron.ParseStandard(scheduledScaling.StartCronSchedule)
 		if err != nil {
@@ -261,8 +261,8 @@ func calcMinMaxTopologySize(config ScalingConfig) (min *models.TopologySize, max
 		scheduledAt := schedule.Next(now.Add(-scheduledScaling.Duration))
 		isWithinScheduledPeriod := !scheduledAt.After(now) && !scheduledAt.Add(scheduledScaling.Duration).Before(now)
 		if isWithinScheduledPeriod {
-			minSizeMemoryGB = scheduledScaling.MinSizeMemoryGB
-			maxSizeMemoryGB = scheduledScaling.MaxSizeMemoryGB
+			minSizeMemoryGB = scheduledScaling.MinMemoryGBPerZone
+			maxSizeMemoryGB = scheduledScaling.MaxMemoryGBPerZone
 		}
 	}
 

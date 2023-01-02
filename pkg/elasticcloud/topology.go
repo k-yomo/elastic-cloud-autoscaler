@@ -18,9 +18,9 @@ const (
 	TopologyIDMaster       TopologyID = "master"
 )
 
-func NewTopologySize(gib int32) *models.TopologySize {
+func NewTopologySize(gib int) *models.TopologySize {
 	return &models.TopologySize{
 		Resource: ec.String("memory"),
-		Value:    ec.Int32(memory.ConvertGiBToMiB(gib)),
+		Value:    ec.Int32(memory.ConvertGiBToMiB(int32(gib))),
 	}
 }

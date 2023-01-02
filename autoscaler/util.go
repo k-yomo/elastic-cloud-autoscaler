@@ -1,5 +1,5 @@
 package autoscaler
 
-func SixtyFourGiBNodeNumToTopologySize(nodeNum int) int32 {
-	return int32(nodeNum * 64)
+func SixtyFourGiBNodeNumToTopologySize(nodeNum int) int {
+	return nodeNum * 64
 }

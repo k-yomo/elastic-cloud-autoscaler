@@ -1,17 +1,18 @@
 package elasticcloud
 
 import (
-	"github.com/elastic/cloud-sdk-go/pkg/models"
-	"github.com/elastic/cloud-sdk-go/pkg/util/ec"
 	"reflect"
 	"testing"
+
+	"github.com/elastic/cloud-sdk-go/pkg/models"
+	"github.com/elastic/cloud-sdk-go/pkg/util/ec"
 )
 
 func TestNewTopologySize(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		gib int32
+		gib int
 	}
 	tests := []struct {
 		name string

@@ -179,7 +179,7 @@ func calcAvailableTopologySizes(
 			continue
 		}
 		// TODO: Fix hardcoded 64 to support the other node sizes
-		availableTopologySizes = append(availableTopologySizes, elasticcloud.NewTopologySize(int32(nodeNum/int(zoneCount)*64)))
+		availableTopologySizes = append(availableTopologySizes, elasticcloud.NewTopologySize(nodeNum/int(zoneCount)*64))
 	}
 	return availableTopologySizes, nil
 }
@@ -266,8 +266,8 @@ func calcMinMaxTopologySize(config ScalingConfig) (min *models.TopologySize, max
 		}
 	}
 
-	return elasticcloud.NewTopologySize(int32(minSizeMemoryGB)),
-		elasticcloud.NewTopologySize(int32(maxSizeMemoryGB)),
+	return elasticcloud.NewTopologySize(minSizeMemoryGB),
+		elasticcloud.NewTopologySize(maxSizeMemoryGB),
 		nil
 }
 

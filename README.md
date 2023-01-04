@@ -56,6 +56,73 @@ scheduledScalings:
     maxMemoryGBPerZone: 256
 ```
 
+## How it scales
+Autoscaler tries to scale-out/scale-in within min/max range keeping configured `shardsPerNode`.
+
+If CPU based auto-scaling is configured, Autoscaler tries to increase/decrease the number of nodes and replicas so that they are closer to the target utilization
+when the CPU utilization stays above/below the target CPU utilization for a certain period of time.
+
+If it can't meet the `shardsPerNode`, Autoscaler won't apply scaling operation.
+
+### Example
+#### - scale-out when CPU utilization is higher then the target
+##### Premise
+```yaml
+cluster:
+  memoryGBPerZone: 384 (64g * 6)
+  zoneCount: 2
+  averageCPUUtil: 60 (keeping 60 for 5 minutes)
+index:
+  numberOfShards: 2
+  numberOfReplicas: 5
+```
+
+##### Config
+```yaml
+index: test
+shardsPerNode: 1
+defaultMinMemoryGBPerZone: 284 (64g * 6)
+defaultMaxMemoryGBPerZone: 768 (64g * 12)
+autoScaling:
+  desiredCPUUtilPercent: 45
+  scaleOutThresholdDuration: 5m
+  scaleInThresholdDuration: 10m
+```
+
+##### Result
+
+Scaling-out to 8 nodes per zone to reduce CPU utilization. (`60% * 12 nodes / 16 nodes => 45%`).
+```yaml
+cluster:
+  memoryGBPerZone: 256 (64g * 6) => 512 (64g * 8)
+  zoneCount: 2
+  averageCPUUtil: 80
+index:
+  numberOfShards: 2
+  numberOfReplicas: 5 => 6
+```
+
+#### - not scaling due to `shardsPerNode` violation
+##### Premise
+```yaml
+cluster:
+  memoryGBPerZone: 192 (64g * 3)
+  zoneCount: 2
+index:
+  numberOfShards: 3
+  numberOfReplicas: 1
+```
+
+##### Config
+```yaml
+index: test
+shardsPerNode: 1
+defaultMinMemoryGBPerZone: 256 (64g * 4)
+defaultMaxMemoryGBPerZone: 256 (64g * 4)
+```
+In the above case, Autoscaler won't apply scaling-out to 4 nodes x 2 zones even though defaultMinMemoryGBPerZone is 4 nodes.
+since either 1 replica (6 shards in total) or 2 replicas (9 shards in total) can't be 8 which is required by `shardsPerNode: 1`.
+
 ## Usage
 Elastic Cloud Autoscaler can be used as library.
 Example is in [./examples/main.go](./examples/main.go).

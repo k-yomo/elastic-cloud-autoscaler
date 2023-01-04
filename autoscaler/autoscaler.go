@@ -108,6 +108,22 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		return scalingOperation, nil
 	}
 
+	currentNodeNum := elasticcloud.CalcNodeNum(currentTopology.Size, currentTopology.ZoneCount)
+	if replicaNum := calcReplicaNumFromNodeNum(
+		currentNodeNum,
+		indexSettings.ShardNum,
+		a.config.Scaling.ShardsPerNode,
+	); isNodeNumReplicaNumValid(currentNodeNum, indexSettings.ShardNum, replicaNum, a.config.Scaling.ShardsPerNode) {
+		if replicaNum != indexSettings.ReplicaNum {
+			scalingOperation.ToReplicaNum = replicaNum
+			scalingOperation.Reason = fmt.Sprintf(
+				"Invalid shards to node ratio '%.2f' (it must be '%d')",
+				float64(indexSettings.TotalShardNum())/float64(currentNodeNum),
+				a.config.Scaling.ShardsPerNode,
+			)
+		}
+	}
+
 	err = a.updateScalingOperationWithAutoScaling(
 		ctx,
 		esResource,
@@ -130,7 +146,7 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 			a.config.Scaling.ShardsPerNode,
 		)
 		scalingOperation.Reason = fmt.Sprintf(
-			"current or desired topology size '%dg' is less than min topology size '%dg'",
+			"Current or desired topology size '%dg' is less than min topology size '%dg'",
 			memory.ConvertMibToGiB(*desiredTopologySize.Value),
 			memory.ConvertMibToGiB(*minTopologySize.Value),
 		)
@@ -145,7 +161,7 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 			a.config.Scaling.ShardsPerNode,
 		)
 		scalingOperation.Reason = fmt.Sprintf(
-			"current or desired topology size '%dg' is greater than max topology size '%dg'",
+			"Current or desired topology size '%dg' is greater than max topology size '%dg'",
 			memory.ConvertMibToGiB(*desiredTopologySize.Value),
 			memory.ConvertMibToGiB(*maxTopologySize.Value),
 		)

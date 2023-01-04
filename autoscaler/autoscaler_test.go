@@ -137,7 +137,7 @@ func TestAutoScaler_Run(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     3,
-				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+				Reason:           "Current or desired topology size '64g' is less than min topology size '128g'",
 			},
 		},
 		{
@@ -177,7 +177,7 @@ func TestAutoScaler_Run(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
 				FromReplicaNum:   3,
 				ToReplicaNum:     1,
-				Reason:           "current or desired topology size '128g' is greater than max topology size '64g'",
+				Reason:           "Current or desired topology size '128g' is greater than max topology size '64g'",
 			},
 		},
 		{
@@ -210,7 +210,7 @@ func TestAutoScaler_Run(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     3,
-				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+				Reason:           "Current or desired topology size '64g' is less than min topology size '128g'",
 			},
 		},
 	}
@@ -287,7 +287,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     3,
-				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+				Reason:           "Current or desired topology size '64g' is less than min topology size '128g'",
 			},
 		},
 		{
@@ -381,7 +381,39 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     3,
-				Reason:           "current or desired topology size '64g' is less than min topology size '128g'",
+				Reason:           "Current or desired topology size '64g' is less than min topology size '128g'",
+			},
+		},
+		{
+			name: "scaling out - only replica num",
+			config: &Config{
+				DeploymentID: "test",
+				Scaling: ScalingConfig{
+					DefaultMinMemoryGBPerZone: SixtyFourGiBNodeNumToTopologySize(2),
+					DefaultMaxMemoryGBPerZone: SixtyFourGiBNodeNumToTopologySize(2),
+					Index:                     "test-index",
+					ShardsPerNode:             1,
+				},
+			},
+			prepareMocks: func(ecClient *mock_elasticcloud.MockClient, esClient *mock_elasticsearch.MockClient, metricsProvider *mock_metrics.MockProvider) {
+				ecClient.EXPECT().GetESResourceInfo(gomock.Any(), true).Return(&models.ElasticsearchResourceInfo{
+					Info: &models.ElasticsearchClusterInfo{
+						PlanInfo: &models.ElasticsearchClusterPlansInfo{
+							Current: newElasticsearchClusterPlanInfo(SixtyFourGiBNodeNumToTopologySize(2), 2),
+						},
+					},
+				}, nil)
+				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
+					ShardNum:   1,
+					ReplicaNum: 1,
+				}, nil)
+			},
+			want: &ScalingOperation{
+				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
+				FromReplicaNum:   1,
+				ToReplicaNum:     3,
+				Reason:           "Invalid shards to node ratio '0.50' (it must be '1')",
 			},
 		},
 		{
@@ -421,7 +453,7 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(1)),
 				FromReplicaNum:   1,
 				ToReplicaNum:     1,
-				Reason:           "current or desired topology size '128g' is greater than max topology size '64g'",
+				Reason:           "Current or desired topology size '128g' is greater than max topology size '64g'",
 			},
 		},
 		{
@@ -536,14 +568,14 @@ func TestAutoScaler_CalcScalingOperation(t *testing.T) {
 				}, nil)
 				esClient.EXPECT().GetIndexSettings(gomock.Any(), "test-index").Return(&elasticsearch.IndexSettings{
 					ShardNum:   1,
-					ReplicaNum: 1,
+					ReplicaNum: 3,
 				}, nil)
 			},
 			want: &ScalingOperation{
 				FromTopologySize: elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
 				ToTopologySize:   elasticcloud.NewTopologySize(SixtyFourGiBNodeNumToTopologySize(2)),
-				FromReplicaNum:   1,
-				ToReplicaNum:     1,
+				FromReplicaNum:   3,
+				ToReplicaNum:     3,
 				Reason:           "Currently within cool down period",
 			},
 		},

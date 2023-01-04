@@ -126,8 +126,8 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		scalingOperation.ToTopologySize = minAvailableTopologySize
 		scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
 			elasticcloud.CalcNodeNum(minAvailableTopologySize, currentTopology.ZoneCount),
-			a.config.Scaling.ShardsPerNode,
 			indexSettings.ShardNum,
+			a.config.Scaling.ShardsPerNode,
 		)
 		scalingOperation.Reason = fmt.Sprintf(
 			"current or desired topology size '%dg' is less than min topology size '%dg'",
@@ -141,8 +141,8 @@ func (a *AutoScaler) CalcScalingOperation(ctx context.Context) (*ScalingOperatio
 		scalingOperation.ToTopologySize = maxAvailableTopologySize
 		scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
 			elasticcloud.CalcNodeNum(maxAvailableTopologySize, currentTopology.ZoneCount),
-			a.config.Scaling.ShardsPerNode,
 			indexSettings.ShardNum,
+			a.config.Scaling.ShardsPerNode,
 		)
 		scalingOperation.Reason = fmt.Sprintf(
 			"current or desired topology size '%dg' is greater than max topology size '%dg'",
@@ -167,19 +167,12 @@ func calcAvailableTopologySizes(
 
 	minNodeNum := elasticcloud.CalcNodeNum(minTopologySize, zoneCount)
 	maxNodeNum := elasticcloud.CalcNodeNum(maxTopologySize, zoneCount)
-	minReplicaNum := calcReplicaNumFromNodeNum(minNodeNum, shardsPerNode, shardNum)
-	maxReplicaNum := calcReplicaNumFromNodeNum(maxNodeNum, shardsPerNode, shardNum)
-	for replicaNum := minReplicaNum; replicaNum <= maxReplicaNum; replicaNum++ {
-		totalShardNum := elasticsearch.CalcTotalShardNum(shardNum, replicaNum)
-		if totalShardNum%shardsPerNode != 0 {
-			continue
+	for nodeNum := minNodeNum; nodeNum <= maxNodeNum; nodeNum += int(zoneCount) {
+		replicaNum := calcReplicaNumFromNodeNum(maxNodeNum, shardNum, shardsPerNode)
+		if isNodeNumReplicaNumValid(nodeNum, shardNum, replicaNum, shardsPerNode) {
+			// TODO: Fix hardcoded 64 to support the other node sizes
+			availableTopologySizes = append(availableTopologySizes, elasticcloud.NewTopologySize(nodeNum/int(zoneCount)*64))
 		}
-		nodeNum := totalShardNum / shardsPerNode
-		if nodeNum%int(zoneCount) != 0 {
-			continue
-		}
-		// TODO: Fix hardcoded 64 to support the other node sizes
-		availableTopologySizes = append(availableTopologySizes, elasticcloud.NewTopologySize(nodeNum/int(zoneCount)*64))
 	}
 	return availableTopologySizes, nil
 }
@@ -326,8 +319,8 @@ func (a *AutoScaler) updateScalingOperationWithAutoScaling(
 		scalingOperation.ToTopologySize = desiredTopologySize
 		scalingOperation.ToReplicaNum = calcReplicaNumFromNodeNum(
 			elasticcloud.CalcNodeNum(desiredTopologySize, currentTopology.ZoneCount),
-			a.config.Scaling.ShardsPerNode,
 			indexSettings.ShardNum,
+			a.config.Scaling.ShardsPerNode,
 		)
 		if shouldScaleOut {
 			scalingOperation.Reason = fmt.Sprintf(
@@ -348,6 +341,17 @@ func (a *AutoScaler) updateScalingOperationWithAutoScaling(
 	return nil
 }
 
-func calcReplicaNumFromNodeNum(nodeNum int, shardsPerNode int, shardNum int) int {
+func calcReplicaNumFromNodeNum(nodeNum int, shardNum int, shardsPerNode int) int {
 	return nodeNum*shardsPerNode/shardNum - 1
+}
+
+func isNodeNumReplicaNumValid(nodeNum int, shardNum int, replicaNum int, shardsPerNode int) bool {
+	totalShardNum := elasticsearch.CalcTotalShardNum(shardNum, replicaNum)
+	if totalShardNum%shardsPerNode != 0 {
+		return false
+	}
+	if nodeNum*shardsPerNode%shardNum != 0 {
+		return false
+	}
+	return true
 }

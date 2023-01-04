@@ -1,0 +1,21 @@
+# build
+FROM golang:1.19-alpine as build
+ENV GO111MODULE=on
+
+WORKDIR /app
+
+RUN apk --no-cache add ca-certificates tzdata
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 go build -o bin/elastic-cloud-autoscaler -ldflags "-w -s" .
+  
+# exec
+FROM scratch
+COPY --from=build /app/bin/elastic-cloud-autoscaler ./elastic-cloud-autoscaler
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
+ENTRYPOINT ["./elastic-cloud-autoscaler"]

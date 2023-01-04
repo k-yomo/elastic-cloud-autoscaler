@@ -24,10 +24,10 @@ func main() {
 func realMain() error {
 	deploymentID := os.Getenv("DEPLOYMENT_ID")
 	elasticCloudAPIKey := os.Getenv("ELASTIC_CLOUD_API_KEY")
-	elasticsearchAPIKey := os.Getenv("ELASTICSEARCH_API_KEY")
-	monitoringElasticsearchAPIKey := os.Getenv("MONITORING_ELASTICSEARCH_API_KEY")
 	elasticsearchCloudID := os.Getenv("ELASTICSEARCH_CLOUD_ID")
+	elasticsearchAPIKey := os.Getenv("ELASTICSEARCH_API_KEY")
 	monitoringElasticsearchCloudID := os.Getenv("MONITORING_ELASTICSEARCH_CLOUD_ID")
+	monitoringElasticsearchAPIKey := os.Getenv("MONITORING_ELASTICSEARCH_API_KEY")
 
 	ecClient, err := api.NewAPI(api.Config{
 		Client:     http.DefaultClient,
@@ -38,15 +38,15 @@ func realMain() error {
 	}
 
 	esClient, err := elasticsearch.NewTypedClient(elasticsearch.Config{
-		APIKey:  elasticsearchAPIKey,
 		CloudID: elasticsearchCloudID,
+		APIKey:  elasticsearchAPIKey,
 	})
 	if err != nil {
 		return err
 	}
 	monitoringESClient, err := elasticsearch.NewTypedClient(elasticsearch.Config{
-		APIKey:  monitoringElasticsearchAPIKey,
 		CloudID: monitoringElasticsearchCloudID,
+		APIKey:  monitoringElasticsearchAPIKey,
 	})
 	if err != nil {
 		return err

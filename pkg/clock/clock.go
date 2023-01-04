@@ -1,9 +1,8 @@
 package clock
 
 import (
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 var Now = time.Now
@@ -11,7 +10,7 @@ var Now = time.Now
 func SetTimeZone(timeZone string) error {
 	loc, err := time.LoadLocation(timeZone)
 	if err != nil {
-		return errors.Wrap(err, "load timezone")
+		return fmt.Errorf("load timezone: %w", err)
 	}
 	time.Local = loc
 	return nil

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/elastic/cloud-sdk-go/pkg/util/slice"
 	esv8 "github.com/elastic/go-elasticsearch/v8"
@@ -207,7 +208,30 @@ func (c *clientImpl) UpdateIndexReplicaNum(ctx context.Context, indexName string
 		return fmt.Errorf("update number_of_replica: %w", err)
 	}
 
-	// TODO: wait until shard relocation finishes
+	return c.waitUntilIndexBecomeHealthy(ctx, indexName)
+}
 
-	return nil
+func (c *clientImpl) waitUntilIndexBecomeHealthy(ctx context.Context, indexName string) error {
+	ticker := time.NewTicker(1 * time.Minute)
+	consecutiveErrCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			indexHealth, err := c.GetIndexHealth(ctx, indexName)
+			if err != nil {
+				consecutiveErrCount += 1
+				if consecutiveErrCount == 3 {
+					return fmt.Errorf("get index health: %w", err)
+				}
+				continue
+			}
+			consecutiveErrCount = 0
+
+			if indexHealth.IsHealthy() {
+				return nil
+			}
+		}
+	}
 }

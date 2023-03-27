@@ -488,7 +488,7 @@ func Test_clientImpl_GetIndexHealth(t *testing.T) {
   "number_of_pending_tasks": 0,
   "number_of_in_flight_fetch": 0,
   "task_max_waiting_in_queue_millis": 0,
-  "active_shards_percent_as_number": 100
+  "active_shards_percent_as_number": 100.0
 }
 `),
 			want: &IndexHealth{
@@ -498,7 +498,7 @@ func Test_clientImpl_GetIndexHealth(t *testing.T) {
 				NumberOfDataNodes:           1,
 				ActivePrimaryShards:         1,
 				ActiveShards:                1,
-				ActiveShardsPercentAsNumber: 100,
+				ActiveShardsPercentAsNumber: 100.0,
 			},
 		},
 		{
@@ -549,7 +549,25 @@ func Test_clientImpl_UpdateIndexReplicaNum(t *testing.T) {
 				indexName:  "test",
 				replicaNum: 2,
 			},
-			esClient: newESClientWithMockResponse(200, `{"acknowledged": true}`),
+			esClient: newESClientWithMockResponse(200, `
+{
+  "cluster_name": "dummy_cluster_name",
+  "status": "green",
+  "timed_out": false,
+  "number_of_nodes": 1,
+  "number_of_data_nodes": 1,
+  "active_primary_shards": 1,
+  "active_shards": 1,
+  "relocating_shards": 0,
+  "initializing_shards": 0,
+  "unassigned_shards": 0,
+  "delayed_unassigned_shards": 0,
+  "number_of_pending_tasks": 0,
+  "number_of_in_flight_fetch": 0,
+  "task_max_waiting_in_queue_millis": 0,
+  "active_shards_percent_as_number": 100.0
+}
+`),
 		},
 		{
 			name: "error response",

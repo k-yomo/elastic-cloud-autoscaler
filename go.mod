@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/elastic/cloud-sdk-go v1.12.1
-	github.com/elastic/go-elasticsearch/v8 v8.6.0
+	github.com/elastic/go-elasticsearch/v8 v8.9.0
 	github.com/go-openapi/strfmt v0.21.7
 	github.com/go-playground/validator/v10 v10.12.0
 	github.com/golang/mock v1.6.0
